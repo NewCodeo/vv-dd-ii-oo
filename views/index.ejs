@@ -4,95 +4,70 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Document</title>
-  <script defer src="https://unpkg.com/peerjs@1.3.1/dist/peerjs.min.js"></script>
-  <script src="/socket.io/socket.io.js"></script>
-  <script>
-    window.onload = function(){
-        const roomID = "<%= roomId %>";
-        const dv = document.getElementById('grid');
-        const peer = new Peer();
-    var otherstream;
-        const socket = io('/');
-       
-        let streamPromise;
-        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-          streamPromise = navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        } else {
-          // Handle the case where camera/audio is not available on the computer
-          streamPromise = Promise.reject('Camera/Audio not available');
-        }
-    
-        streamPromise
-          .then((stream) => {
-            addSm(createVideoElement(stream), stream);
-          otherstream = stream
-          })
-          .catch((error) => {
-            console.error('Error accessing camera/audio:', error);
-            // Display an error message or take appropriate action
-          });
-          
-          peer.on('call', (call) => {
-            call.answer(otherstream);
-            const newVid = createVideoElement();
-            call.on('stream', (userStream) => {
-              addSm(newVid, userStream);
-            });
-          });
-  
-          socket.on('user_connected', (userId) => {
-            newUser(userId, otherstream);
-            console.log(otherstream)
-          });
-    
-        peer.on('open', (id) => {
-          console.log(id);
-          socket.emit('join_room', id, roomID);
-          console.log(roomID);
-        });
-    
-        function newUser(userId, otherstream) {
-          console.log(otherstream)
-          const call = peer.call(userId, otherstream);
-          const vido = createVideoElement();
-          call.on('stream', (userStream) => {
-            addSm(vido, userStream);
-          });
-    
-          peer.on('close', () => {
-            vido.remove();
-          });
-        }
-    
-        function addSm(videoEl, stream) {
-          videoEl.srcObject = stream;
-          videoEl.addEventListener('loadedmetadata', () => {
-            videoEl.play();
-          });
-          dv.append(videoEl);
-        }
-    
-        function createVideoElement() {
-          const videoEl = document.createElement('video');
-          videoEl.autoplay = true;
-          // Mute the video element to avoid audio feedback loop
-          return videoEl;
-        }
-    }
-    
-  </script>
+</head>
 <style>
   #grid {
     display: grid;
     gap: 30px;
-    grid-template-rows: repeat(auto-fit, 100px);
-    grid-template-rows:  100px;
+    grid-template-rows: repeat(auto-fill, 300px);
   }
 </style>
-</head>
 <body>
   <h1>video_chat</h1>
   <div id="grid"></div>
- 
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.1.3/socket.io.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.6.0/peerjs.min.js"></script>
+
+  <script>
+    const dv = document.getElementById('grid');
+    const socket = io();
+    let myStream; // Variable to store the stream from the mobile device
+
+    // Initialize Peer with an empty ID
+    const peer = new Peer('');
+
+    socket.on('joined', (data) => {
+      document.body.innerHTML += data;
+    });
+
+    peer.on('open', (id) => {
+      console.log('My Peer ID:', id);
+      socket.emit('join_room', id); // No need to pass roomID if you're not using it
+    });
+
+    socket.on('user_connected', (userId) => {
+      navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+        .then((stream) => {
+          myStream = stream;
+          newUser(userId, stream);
+        })
+        .catch((error) => {
+          console.error('Error accessing media devices:', error);
+        });
+    });
+
+    function newUser(userId, stream) {
+      const call = peer.call(userId, myStream); // Use myStream as the video source
+      const videoEl = document.createElement('video');
+      videoEl.autoplay = true;
+
+      call.on('stream', (userStream) => {
+        addStream(videoEl, userStream);
+      });
+
+      peer.on('close', () => {
+        videoEl.remove();
+      });
+    }
+
+    function addStream(videoEl, stream) {
+      videoEl.srcObject = stream;
+      videoEl.addEventListener('loadedmetadata', () => {
+        videoEl.play();
+      });
+      dv.append(videoEl);
+    }
+  </script>
 </body>
 </html>
