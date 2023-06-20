@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+  <script defer src="https://unpkg.com/peerjs@1.3.1/dist/peerjs.min.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    window.onload = function(){
+        const roomID = "<%= roomId %>";
+        const dv = document.getElementById('grid');
+        const peer = new Peer();
+    var otherstream;
+        const socket = io('/');
+       
+        let streamPromise;
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+          streamPromise = navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        } else {
+          // Handle the case where camera/audio is not available on the computer
+          streamPromise = Promise.reject('Camera/Audio not available');
+        }
+    
+        streamPromise
+          .then((stream) => {
+            addSm(createVideoElement(stream), stream);
+          otherstream = stream
+          })
+          .catch((error) => {
+            console.error('Error accessing camera/audio:', error);
+            // Display an error message or take appropriate action
+          });
+          
+          peer.on('call', (call) => {
+            call.answer(otherstream);
+            const newVid = createVideoElement();
+            call.on('stream', (userStream) => {
+              addSm(newVid, userStream);
+            });
+          });
+  
+          socket.on('user_connected', (userId) => {
+            newUser(userId, otherstream);
+            console.log(otherstream)
+          });
+    
+        peer.on('open', (id) => {
+          console.log(id);
+          socket.emit('join_room', id, roomID);
+          console.log(roomID);
+        });
+    
+        function newUser(userId, otherstream) {
+          console.log(otherstream)
+          const call = peer.call(userId, otherstream);
+          const vido = createVideoElement();
+          call.on('stream', (userStream) => {
+            addSm(vido, userStream);
+          });
+    
+          peer.on('close', () => {
+            vido.remove();
+          });
+        }
+    
+        function addSm(videoEl, stream) {
+          videoEl.srcObject = stream;
+          videoEl.addEventListener('loadedmetadata', () => {
+            videoEl.play();
+          });
+          dv.append(videoEl);
+        }
+    
+        function createVideoElement() {
+          const videoEl = document.createElement('video');
+          videoEl.autoplay = true;
+          // Mute the video element to avoid audio feedback loop
+          return videoEl;
+        }
+    }
+    
+  </script>
+<style>
+  #grid {
+    display: grid;
+    gap: 30px;
+    grid-template-rows: repeat(auto-fit, 100px);
+    grid-template-rows:  100px;
+  }
+</style>
+</head>
+<body>
+  <h1>video_chat</h1>
+  <div id="grid"></div>
+ 
+</body>
+</html>
